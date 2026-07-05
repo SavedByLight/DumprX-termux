@@ -65,10 +65,17 @@ _termux_fetch_magiskboot() {
 	command -v magiskboot > /dev/null 2>&1 && return 0
 	[[ -x "$dest" ]] && return 0
 	echo "Fetching an Android/arm64 magiskboot build from Magisk releases..."
-	local tmpzip="${TMPDIR:-/tmp}/magisk.zip"
 	mkdir -p "${UTILSDIR}/bin"
-	curl -sL -o "$tmpzip" "https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk-v29.0.apk" \
-		|| curl -sL -o "$tmpzip" "https://github.com/topjohnwu/Magisk/releases/latest/download/app-release.apk"
+	local apk_url
+	# Magisk's release filename/version changes every release, so resolve it
+	# from their own canonical manifest instead of guessing a version string.
+	apk_url=$(curl -sL https://raw.githubusercontent.com/topjohnwu/magisk-files/master/stable.json | jq -r '.magisk.link')
+	if [[ -z "$apk_url" || "$apk_url" == "null" ]]; then
+		echo "WARNING: Could not resolve Magisk's current release URL; skipping magiskboot fetch."
+		return 1
+	fi
+	local tmpzip="${TMPDIR:-/tmp}/magisk.apk"
+	curl -sL -o "$tmpzip" "$apk_url"
 	if [[ -s "$tmpzip" ]]; then
 		"${BIN_7ZZ:-7z}" e -y "$tmpzip" -o"${UTILSDIR}/bin" "lib/arm64-v8a/libmagiskboot.so" > /dev/null 2>&1
 		[[ -f "${UTILSDIR}/bin/libmagiskboot.so" ]] && mv "${UTILSDIR}/bin/libmagiskboot.so" "$dest" && chmod +x "$dest"
